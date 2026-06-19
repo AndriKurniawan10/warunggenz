@@ -7,7 +7,7 @@ const CONFIG = {
   BANK_NUMBER: "1234567890",         // <-- ganti no. rekening
   BANK_HOLDER: "Warung GenZ",        // <-- ganti nama pemilik rekening
   ADMIN_PIN: "genz2026",             // <-- ganti PIN admin, jangan dishare ke sembarang orang
-  SUPABASE_URL: "https://xxxxxxxxxxx.supabase.co",   // <-- ganti dengan Project URL dari Supabase
+  SUPABASE_URL: "https://gsjhqounfebyalkknnza.supabase.co",   // Project URL lo
   SUPABASE_KEY: "sb_publishable_s2AAr-jH9ZZP19lQwi93jg_7FO0hOUA"  // sudah diisi pakai publishable key lo
 };
 
