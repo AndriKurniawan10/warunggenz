@@ -211,7 +211,8 @@ function closeModal(id){
 
 function buildWAMessage(order){
   const lines = order.items.map(it=>`- ${it.name} x${it.qty} = ${rupiah(it.price*it.qty)}`).join("\n");
-  let msg = `Halo Warung GenZ! 👋\nMau konfirmasi pesanan:\n\nID Pesanan: ${order.id}\nNama: ${order.name}\nNo. HP: ${order.phone}\nAlamat/Catatan: ${order.address || "-"}\n\nPesanan:\n${lines}\n\nTotal: ${rupiah(order.total)}\n`;  msg += order.payment==="transfer"
+  let msg = `Halo Warung GenZ! 👋\nMau konfirmasi pesanan:\n\nID Pesanan: ${order.id}\nNama: ${order.name}\nNo. HP: ${order.phone}\nAlamat/Catatan: ${order.address || "-"}\n\nPesanan:\n${lines}\n\nTotal: ${rupiah(order.total)}\n`;
+  msg += order.payment==="transfer"
     ? "Bukti transfer saya lampirkan di chat ini ya 🙏"
     : "Mohon dikonfirmasi pesanannya, makasih! 🙏";
   return msg;
