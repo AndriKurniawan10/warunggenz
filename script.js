@@ -6,8 +6,13 @@ const CONFIG = {
   BANK_NAME: "BCA",                  // <-- ganti nama bank
   BANK_NUMBER: "1234567890",         // <-- ganti no. rekening
   BANK_HOLDER: "Warung GenZ",        // <-- ganti nama pemilik rekening
-  ADMIN_PIN: "genz2026"              // <-- ganti PIN admin, jangan dishare ke sembarang orang
+  ADMIN_PIN: "genz2026",             // <-- ganti PIN admin, jangan dishare ke sembarang orang
+  SUPABASE_URL: "https://xxxxxxxxxxx.supabase.co",   // <-- ganti dengan Project URL dari Supabase
+  SUPABASE_KEY: "sb_publishable_s2AAr-jH9ZZP19lQwi93jg_7FO0hOUA"  // sudah diisi pakai publishable key lo
 };
+
+// Klien Supabase buat baca/tulis data pesanan
+const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
 /* ============================================================
    🍛 DATA MENU — EDIT / TAMBAH MENU DI SINI
@@ -62,16 +67,7 @@ function genOrderId(){
   return "WGZ-" + t + r;
 }
 
-async function loadCartFromStorage(){
-  try{
-    const res = await window.storage.get("cart_state", false);
-    if(res && res.value){ cart = JSON.parse(res.value); }
-  }catch(e){ /* belum ada cart tersimpan, gpp */ }
-}
-async function saveCartToStorage(){
-  try{ await window.storage.set("cart_state", JSON.stringify(cart), false); }
-  catch(e){ console.error("Gagal simpan cart:", e); }
-}
+// Cart cuma disimpen di memori browser (reset kalau halaman direfresh, normal kok buat e-commerce)
 
 /* ============================================================
    NAVIGATION
@@ -126,7 +122,6 @@ document.getElementById("catPills").addEventListener("click", e=>{
 function changeQty(id, delta){
   const newQty = (cart[id]||0) + delta;
   if(newQty <= 0){ delete cart[id]; } else { cart[id] = newQty; }
-  saveCartToStorage();
   renderMenu();
   renderCart();
 }
@@ -174,7 +169,6 @@ function renderCart(){
 
 function removeItem(id){
   delete cart[id];
-  saveCartToStorage();
   renderMenu();
   renderCart();
 }
@@ -251,19 +245,17 @@ async function submitOrder(){
     total: cartTotal(),
     payment: selectedPayment,
     status: selectedPayment==="transfer" ? "Menunggu Verifikasi" : "Menunggu Konfirmasi",
-    createdAt: Date.now()
+    created_at: new Date().toISOString()
   };
 
-  try{
-    await window.storage.set("order:"+order.id, JSON.stringify(order), true);
-  }catch(e){
+  const { error } = await sb.from("orders").insert(order);
+  if(error){
     toast("Gagal simpan pesanan, coba lagi ya.");
-    console.error(e);
+    console.error(error);
     return;
   }
 
   cart = {};
-  saveCartToStorage();
   renderMenu();
   renderCart();
   closeModal("checkoutModal");
@@ -313,7 +305,7 @@ function closeConfirm(){
 function renderOrderCard(order, withSelect){
   const cls = STATUS_STYLE[order.status] || "wait";
   const itemsText = order.items.map(it=>`${it.name} x${it.qty}`).join(", ");
-  const when = new Date(order.createdAt).toLocaleString("id-ID");
+  const when = new Date(order.created_at).toLocaleString("id-ID");
   const select = withSelect ? `
     <select class="status-select" onchange="updateOrderStatus('${order.id}', this.value)">
       ${STATUS_LIST.map(s=>`<option value="${s}" ${s===order.status?"selected":""}>${s}</option>`).join("")}
@@ -342,29 +334,18 @@ async function searchOrder(){
 
   try{
     if(q.toUpperCase().startsWith("WGZ")){
-      try{
-        const res = await window.storage.get("order:"+q.toUpperCase(), true);
-        resultBox.innerHTML = res && res.value ? renderOrderCard(JSON.parse(res.value), false) : `<div class="empty-state">Pesanan dengan ID itu gak ketemu 🥲</div>`;
-      }catch(e){
+      const { data, error } = await sb.from("orders").select("*").eq("id", q.toUpperCase()).maybeSingle();
+      if(error || !data){
         resultBox.innerHTML = `<div class="empty-state">Pesanan dengan ID itu gak ketemu 🥲</div>`;
+        return;
       }
+      resultBox.innerHTML = renderOrderCard(data, false);
       return;
     }
-    const list = await window.storage.list("order:", true);
-    const keys = (list && list.keys) || [];
-    const matches = [];
-    for(const k of keys){
-      try{
-        const res = await window.storage.get(k, true);
-        if(res && res.value){
-          const order = JSON.parse(res.value);
-          if(order.phone && order.phone.includes(q)) matches.push(order);
-        }
-      }catch(e){}
-    }
-    matches.sort((a,b)=>b.createdAt - a.createdAt);
-    resultBox.innerHTML = matches.length
-      ? matches.map(o=>renderOrderCard(o,false)).join("")
+    const { data, error } = await sb.from("orders").select("*").ilike("phone", "%"+q+"%").order("created_at", { ascending:false });
+    if(error){ throw error; }
+    resultBox.innerHTML = (data && data.length)
+      ? data.map(o=>renderOrderCard(o,false)).join("")
       : `<div class="empty-state">Belum ada pesanan dengan no. HP itu 🥲</div>`;
   }catch(e){
     resultBox.innerHTML = `<div class="empty-state">Gagal ambil data, coba lagi ya.</div>`;
@@ -392,17 +373,9 @@ async function loadAdminOrders(){
   const box = document.getElementById("adminOrders");
   box.innerHTML = `<div class="empty-state">Lagi ambil data pesanan...</div>`;
   try{
-    const list = await window.storage.list("order:", true);
-    const keys = (list && list.keys) || [];
-    const orders = [];
-    for(const k of keys){
-      try{
-        const res = await window.storage.get(k, true);
-        if(res && res.value) orders.push(JSON.parse(res.value));
-      }catch(e){}
-    }
-    orders.sort((a,b)=>b.createdAt - a.createdAt);
-    allOrdersCache = orders;
+    const { data, error } = await sb.from("orders").select("*").order("created_at", { ascending:false });
+    if(error) throw error;
+    allOrdersCache = data || [];
     renderAdminOrders();
   }catch(e){
     box.innerHTML = `<div class="empty-state">Gagal ambil data pesanan.</div>`;
@@ -423,13 +396,10 @@ function renderAdminOrders(){
 
 async function updateOrderStatus(id, newStatus){
   try{
-    const res = await window.storage.get("order:"+id, true);
-    if(!res || !res.value) return;
-    const order = JSON.parse(res.value);
-    order.status = newStatus;
-    await window.storage.set("order:"+id, JSON.stringify(order), true);
+    const { error } = await sb.from("orders").update({ status:newStatus }).eq("id", id);
+    if(error) throw error;
     const idx = allOrdersCache.findIndex(o=>o.id===id);
-    if(idx>-1) allOrdersCache[idx] = order;
+    if(idx>-1) allOrdersCache[idx].status = newStatus;
     renderAdminOrders();
     toast("Status pesanan "+id+" diupdate ✅");
   }catch(e){
@@ -441,8 +411,7 @@ async function updateOrderStatus(id, newStatus){
 /* ============================================================
    INIT
    ============================================================ */
-(async function init(){
-  await loadCartFromStorage();
+(function init(){
   renderMenu();
   renderCart();
 })();
