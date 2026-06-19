@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Warung GenZ — Pesen Online</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <button class="logo" onclick="goView('home')" aria-label="Warung GenZ - Beranda">
+      <span class="logo-badge">WG</span>
+      <span class="logo-text">Warung GenZ<small>PESEN ONLINE · ANTI RIBET</small></span>
+    </button>
+    <nav class="nav-pills">
+      <button class="nav-pill" data-view="home" onclick="goView('home')">Menu</button>
+      <button class="nav-pill" data-view="track" onclick="goView('track')">Cek Pesanan</button>
+      <button class="nav-pill" data-view="admin" onclick="goView('admin')">Admin</button>
+    </nav>
+    <button class="cart-btn" onclick="openCart()" aria-label="Buka keranjang">
+      🧾<span class="cart-count" id="cartCount">0</span>
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ============ HOME VIEW ============ -->
+  <section id="view-home" class="view active">
+    <div class="hero">
+      <div class="hero-inner">
+        <span class="hero-eyebrow">⚡ BUKA SETIAP HARI</span>
+        <h1>Laper? <span>Pesen aja,</span><br>beres dalam sekejap.</h1>
+        <p>Warung GenZ — menu kekinian, harga ramah kantong. Tinggal pilih, checkout, bayar transfer atau COD.</p>
+        <a href="#menu" class="hero-cta">Liat Menu Yuk 👀</a>
+        <div class="badges">
+          <span class="badge">🔥 Best seller harian</span>
+          <span class="badge">⏱️ Siap ±15 menit</span>
+          <span class="badge">🛵 COD & Transfer</span>
+        </div>
+      </div>
+    </div>
+
+    <section class="menu-section wrap" id="menu">
+      <div class="section-head">
+        <h2>Menu Hari Ini</h2>
+        <div class="pills" id="catPills">
+          <button class="pill active" data-cat="semua">Semua</button>
+          <button class="pill" data-cat="makanan">🍛 Makanan</button>
+          <button class="pill" data-cat="minuman">🥤 Minuman</button>
+        </div>
+      </div>
+      <div class="menu-grid" id="menuGrid"></div>
+    </section>
+  </section>
+
+  <!-- ============ TRACK ORDER VIEW ============ -->
+  <section id="view-track" class="view">
+    <div class="page-section wrap">
+      <h2>Cek Status Pesanan</h2>
+      <p class="sub">Masukkan ID pesanan (contoh: WGZ-ABC123) atau nomor HP yang lo pakai waktu checkout.</p>
+      <div class="search-row">
+        <input type="text" id="trackInput" placeholder="ID Pesanan atau No. HP">
+        <button onclick="searchOrder()">Cek Status</button>
+      </div>
+      <div id="trackResult"></div>
+    </div>
+  </section>
+
+  <!-- ============ ADMIN VIEW ============ -->
+  <section id="view-admin" class="view">
+    <div class="page-section wrap">
+      <div id="adminGate" class="pin-box">
+        <h2>Login Admin</h2>
+        <p class="sub">Khusus pemilik Warung GenZ. Masukkan PIN admin.</p>
+        <input type="password" id="adminPin" placeholder="PIN" inputmode="numeric" maxlength="8">
+        <button onclick="checkAdminPin()">Masuk</button>
+      </div>
+      <div id="adminPanel" style="display:none;">
+        <div class="section-head">
+          <h2>Daftar Pesanan</h2>
+          <button onclick="loadAdminOrders()" style="background:var(--ink);color:var(--turmeric);font-weight:700;padding:9px 16px;border-radius:10px;font-size:13px;">🔄 Refresh</button>
+        </div>
+        <div class="search-row">
+          <input type="text" id="adminSearch" placeholder="Cari nama / no. HP / ID pesanan..." oninput="renderAdminOrders()">
+        </div>
+        <div id="adminOrders"></div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="foot-logo">Warung GenZ</span>
+    <p>© 2026 Warung GenZ. Dibuat dengan 🧡 buat anak GenZ yang laper.</p>
+  </div>
+</footer>
+
+<!-- cart drawer -->
+<div class="overlay" id="cartOverlay" onclick="closeCart()"></div>
+<aside class="cart-drawer" id="cartDrawer">
+  <div class="receipt-head">
+    <h2>🧾 Struk Pesanan</h2>
+    <button class="close-btn" onclick="closeCart()">✕</button>
+  </div>
+  <div class="cart-items" id="cartItemsBox"></div>
+  <div class="zigzag"></div>
+  <div class="cart-footer">
+    <div class="total-row"><span>TOTAL</span><span id="cartTotal">Rp0</span></div>
+    <button class="checkout-btn" id="checkoutOpenBtn" onclick="openCheckout()" disabled>Checkout</button>
+  </div>
+</aside>
+
+<!-- checkout modal -->
+<div class="modal" id="checkoutModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Data Pemesan</h2>
+      <button class="close-btn" onclick="closeModal('checkoutModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Nama Lengkap</label>
+        <input type="text" id="custName" placeholder="Nama lo siapa?">
+        <span class="err-text" id="errName">Nama wajib diisi ya</span>
+      </div>
+      <div class="field">
+        <label>No. HP / WhatsApp</label>
+        <input type="tel" id="custPhone" placeholder="08xxxxxxxxxx">
+        <span class="err-text" id="errPhone">No. HP wajib diisi ya</span>
+      </div>
+      <div class="field">
+        <label>Alamat / Catatan</label>
+        <textarea id="custAddress" placeholder="Alamat anter, atau tulis 'ambil sendiri' kalau pickup"></textarea>
+        <span class="err-text" id="errAddress">Alamat wajib diisi buat COD</span>
+      </div>
+      <div class="field">
+        <label>Metode Pembayaran</label>
+        <div class="pay-options">
+          <div class="pay-opt selected" id="payTransferOpt" onclick="selectPayment('transfer')">
+            <div class="ic">💳</div>
+            <div class="lbl">Transfer</div>
+            <div class="sub">Kirim bukti via WA</div>
+          </div>
+          <div class="pay-opt" id="payCodOpt" onclick="selectPayment('cod')">
+            <div class="ic">🛵</div>
+            <div class="lbl">COD</div>
+            <div class="sub">Bayar di tempat</div>
+          </div>
+        </div>
+      </div>
+      <div class="mini-receipt" id="checkoutSummary"></div>
+      <button class="submit-btn" onclick="submitOrder()">Buat Pesanan</button>
+    </div>
+  </div>
+</div>
+
+<!-- confirmation modal -->
+<div class="modal" id="confirmModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Pesanan Dibuat 🎉</h2>
+      <button class="close-btn" onclick="closeConfirm()">✕</button>
+    </div>
+    <div class="modal-body" id="confirmBody"></div>
+  </div>
+</div>
+
+<div class="toast" id="toastBox"></div>
+
+<script src="script.js" defer></script>
+</body>
+</html>
