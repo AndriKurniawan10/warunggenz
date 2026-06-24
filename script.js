@@ -3,7 +3,7 @@
    ============================================================ */
 const CONFIG = {
   WA_NUMBER: "6289501201052",       // No. WA Warung GenZ
-  ADMIN_PIN: "genz2026",            // <-- ganti PIN admin, jangan dishare ke sembarang orang
+  ADMIN_PIN: "98123",            // <-- ganti PIN admin, jangan dishare ke sembarang orang
   SUPABASE_URL: "https://gsjhqounfebyalkknnza.supabase.co",
   SUPABASE_KEY: "sb_publishable_s2AAr-jH9ZZP19lQwi93jg_7FO0hOUA",
   REKENING: [
