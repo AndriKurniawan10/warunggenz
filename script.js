@@ -2,13 +2,14 @@
    ⚙️ KONFIGURASI — EDIT BAGIAN INI SESUAI WARUNG LO
    ============================================================ */
 const CONFIG = {
-  WA_NUMBER: "6281234567890",        // <-- ganti dengan no. WA Warung GenZ (format 62xxxx, tanpa + atau 0 di depan)
-  BANK_NAME: "BCA",                  // <-- ganti nama bank
-  BANK_NUMBER: "1234567890",         // <-- ganti no. rekening
-  BANK_HOLDER: "Warung GenZ",        // <-- ganti nama pemilik rekening
-  ADMIN_PIN: "genz2026",             // <-- ganti PIN admin, jangan dishare ke sembarang orang
-  SUPABASE_URL: "https://gsjhqounfebyalkknnza.supabase.co",   // Project URL lo
-  SUPABASE_KEY: "sb_publishable_s2AAr-jH9ZZP19lQwi93jg_7FO0hOUA"  // sudah diisi pakai publishable key lo
+  WA_NUMBER: "6289501201052",       // No. WA Warung GenZ
+  ADMIN_PIN: "Hasangenz2026",            // <-- ganti PIN admin, jangan dishare ke sembarang orang
+  SUPABASE_URL: "https://gsjhqounfebyalkknnza.supabase.co",
+  SUPABASE_KEY: "sb_publishable_s2AAr-jH9ZZP19lQwi93jg_7FO0hOUA",
+  REKENING: [
+    { bank:"BCA",  number:"2110378303",  holder:"Bagus Mukridin" },
+    { bank:"DANA", number:"089501201052", holder:"Hasanudin" }
+  ]
 };
 
 // Klien Supabase buat baca/tulis data pesanan
@@ -221,10 +222,13 @@ function closeModal(id){
 
 function buildWAMessage(order){
   const lines = order.items.map(it=>`- ${it.name} x${it.qty} = ${rupiah(it.price*it.qty)}`).join("\n");
+  const rekeningInfo = CONFIG.REKENING.map(r=>`   ${r.bank}: ${r.number} a.n. ${r.holder}`).join("\n");
   let msg = `Halo Warung GenZ! 👋\nMau konfirmasi pesanan:\n\nID Pesanan: ${order.id}\nNama: ${order.name}\nNo. HP: ${order.phone}\nAlamat/Catatan: ${order.address || "-"}\n\nPesanan:\n${lines}\n\nTOTAL: ${rupiah(order.total)}\nMetode Bayar: ${order.payment==="transfer" ? "Transfer Bank" : "COD"}\n\n`;
-  msg += order.payment==="transfer"
-    ? "Bukti transfer saya lampirkan di chat ini ya 🙏"
-    : "Mohon dikonfirmasi pesanannya, makasih! 🙏";
+  if(order.payment==="transfer"){
+    msg += `Saya sudah transfer ke salah satu rekening berikut:\n${rekeningInfo}\n\nBukti transfer saya lampirkan di chat ini ya 🙏`;
+  } else {
+    msg += "Mohon dikonfirmasi pesanannya, makasih! 🙏";
+  }
   return msg;
 }
 
@@ -279,29 +283,45 @@ function showConfirmation(order){
 
   let bankBlock = "";
   if(order.payment==="transfer"){
+    const rekeningHtml = CONFIG.REKENING.map(r=>`
+      <div class="bank-box" style="margin-bottom:10px;">
+        <div class="bname">${r.bank} a.n. ${r.holder}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="bnum" id="bnum-${r.bank}">${r.number}</div>
+          <button onclick="copyRek('${r.number}','${r.bank}')"
+            style="background:var(--ink);color:var(--turmeric);font-size:11px;font-weight:700;padding:5px 10px;border-radius:7px;flex-shrink:0;">
+            📋 Salin
+          </button>
+        </div>
+      </div>`).join("");
     bankBlock = `
-      <div class="bank-box">
-        <div class="bname">${CONFIG.BANK_NAME} a.n. ${CONFIG.BANK_HOLDER}</div>
-        <div class="bnum">${CONFIG.BANK_NUMBER}</div>
-        <small>Transfer sesuai total, lalu kirim bukti lewat tombol WhatsApp di bawah biar cepet diverifikasi 👇</small>
-      </div>`;
+      <p style="font-size:13px;font-weight:700;margin:14px 0 8px;">💳 Pilih rekening tujuan transfer:</p>
+      ${rekeningHtml}
+      <small style="color:#8a7c66;">Transfer sesuai total, lalu kirim bukti lewat tombol WhatsApp di bawah biar cepet diverifikasi 👇</small>`;
   }
 
-  const stampClass = order.payment==="transfer" ? "pending" : "pending";
   const stampText = order.payment==="transfer" ? "Menunggu Verifikasi" : "Menunggu Konfirmasi";
 
   document.getElementById("confirmBody").innerHTML = `
-    <div class="stamp-wrap"><div class="stamp ${stampClass}">${stampText}</div></div>
+    <div class="stamp-wrap"><div class="stamp pending">${stampText}</div></div>
     <div class="mini-receipt">
       <div class="r"><span>ID Pesanan</span><span>${order.id}</span></div>
       ${itemLines}
       <div class="r tot"><span>TOTAL</span><span>${rupiah(order.total)}</span></div>
     </div>
     ${bankBlock}
-    <a class="wa-btn" href="${waLink}" target="_blank" rel="noopener">💬 Kirim Konfirmasi via WhatsApp</a>
+    <a class="wa-btn" href="${waLink}" target="_blank" rel="noopener" style="margin-top:14px;">💬 Kirim Konfirmasi via WhatsApp</a>
     <button class="close-text-btn" onclick="closeConfirm()">Tutup, nanti aja konfirmasinya</button>
   `;
   document.getElementById("confirmModal").classList.add("show");
+}
+
+function copyRek(number, bank){
+  navigator.clipboard.writeText(number).then(()=>{
+    toast("No. rek " + bank + " berhasil disalin 📋");
+  }).catch(()=>{
+    toast("Salin manual ya: " + number);
+  });
 }
 
 function closeConfirm(){
