@@ -79,14 +79,58 @@
         <button onclick="checkAdminPin()">Masuk</button>
       </div>
       <div id="adminPanel" style="display:none;">
-        <div class="section-head">
-          <h2>Daftar Pesanan</h2>
-          <button onclick="loadAdminOrders()" style="background:var(--ink);color:var(--turmeric);font-weight:700;padding:9px 16px;border-radius:10px;font-size:13px;">🔄 Refresh</button>
+        <div class="section-head" style="margin-bottom:20px;">
+          <h2>Dashboard Admin</h2>
+          <button onclick="adminLogout()" style="background:var(--chili);color:var(--white);font-weight:700;padding:9px 16px;border-radius:10px;font-size:13px;">Logout</button>
         </div>
-        <div class="search-row">
-          <input type="text" id="adminSearch" placeholder="Cari nama / no. HP / ID pesanan..." oninput="renderAdminOrders()">
+        <div class="admin-tabs">
+          <button class="admin-tab active" id="tabPesanan" onclick="switchAdminTab('pesanan')">📋 Pesanan Masuk</button>
+          <button class="admin-tab" id="tabMenu" onclick="switchAdminTab('menu')">🍛 Kelola Menu</button>
         </div>
-        <div id="adminOrders"></div>
+
+        <!-- TAB PESANAN -->
+        <div id="adminTabPesanan">
+          <div class="search-row">
+            <input type="text" id="adminSearch" placeholder="Cari nama / no. HP / ID pesanan..." oninput="renderAdminOrders()">
+            <button onclick="loadAdminOrders()">🔄 Refresh</button>
+          </div>
+          <div id="adminOrders"></div>
+        </div>
+
+        <!-- TAB KELOLA MENU -->
+        <div id="adminTabMenu" style="display:none;">
+          <div class="menu-form">
+            <h3 id="menuFormTitle">➕ Tambah Menu Baru</h3>
+            <input type="hidden" id="editMenuId">
+            <div class="form-grid">
+              <div class="field full">
+                <label>Nama Menu</label>
+                <input type="text" id="menuName" placeholder="Contoh: Nasi Goreng GenZ">
+              </div>
+              <div class="field">
+                <label>Kategori</label>
+                <select id="menuCat" style="width:100%;padding:11px 13px;border-radius:10px;border:2px solid var(--line);background:var(--paper);font-size:14.5px;">
+                  <option value="makanan">🍛 Makanan</option>
+                  <option value="minuman">🥤 Minuman</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Harga (Rp)</label>
+                <input type="number" id="menuPrice" placeholder="15000" min="0">
+              </div>
+              <div class="field full">
+                <label>Emoji Menu</label>
+                <input type="text" id="menuEmoji" placeholder="🍛" maxlength="4">
+                <small>Pilih emoji yang cocok sama menunya</small>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:6px;">
+              <button class="save-btn" onclick="saveMenuItem()">💾 Simpan Menu</button>
+              <button class="cancel-btn" id="cancelEditBtn" onclick="cancelEditMenu()" style="display:none;">Batal</button>
+            </div>
+          </div>
+          <div id="adminMenuList"></div>
+        </div>
       </div>
     </div>
   </section>
@@ -172,7 +216,7 @@
 
 <div class="toast" id="toastBox"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
 <script src="script.js" defer></script>
 </body>
 </html>
