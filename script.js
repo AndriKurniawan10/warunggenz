@@ -108,13 +108,18 @@ function renderMenu(){
            <button onclick="changeQty('${item.id}',1)" aria-label="Tambah">+</button>
          </div>`
       : `<button class="add-btn" onclick="changeQty('${item.id}',1)">+ Tambah</button>`;
+    const visual = item.image_url
+      ? `<img class="card-img" src="${item.image_url}" alt="${item.name}" loading="lazy">`
+      : `<div class="card-img-placeholder">${item.emoji||"🍽️"}</div>`;
     return `
       <div class="card">
-        <div class="card-emoji">${item.emoji||"🍽️"}</div>
-        <div class="card-cat">${item.cat}</div>
-        <h3>${item.name}</h3>
-        <div class="card-price">${rupiah(item.price)}</div>
-        <div class="card-action">${action}</div>
+        ${visual}
+        <div class="card-body">
+          <div class="card-cat">${item.cat}</div>
+          <h3>${item.name}</h3>
+          <div class="card-price">${rupiah(item.price)}</div>
+          <div class="card-action">${action}</div>
+        </div>
       </div>`;
   }).join("");
 }
@@ -477,7 +482,9 @@ function renderAdminMenuList(){
   }
   box.innerHTML = adminMenuCache.map(item=>`
     <div class="menu-item-card">
-      <div class="mic-emoji">${item.emoji||"🍽️"}</div>
+      ${item.image_url
+        ? `<img class="mic-img" src="${item.image_url}" alt="${item.name}">`
+        : `<div class="mic-emoji-fallback">${item.emoji||"🍽️"}</div>`}
       <div class="mic-info">
         <div class="mic-name">${item.name}</div>
         <div class="mic-sub">${item.cat} · ${item.tersedia ? "✅ Tersedia" : "❌ Tidak tersedia"}</div>
@@ -491,6 +498,17 @@ function renderAdminMenuList(){
   `).join("");
 }
 
+function previewImage(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.size > 2*1024*1024){ toast("Foto terlalu besar, maks 2MB ya bro!"); return; }
+  const preview = document.getElementById("imgPreview");
+  const label = document.getElementById("imgUploadLabel");
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
+  label.style.display = "none";
+}
+
 function startEditMenu(item){
   document.getElementById("menuFormTitle").textContent = "✏️ Edit Menu";
   document.getElementById("editMenuId").value = item.id;
@@ -499,6 +517,19 @@ function startEditMenu(item){
   document.getElementById("menuPrice").value = item.price;
   document.getElementById("menuEmoji").value = item.emoji||"";
   document.getElementById("cancelEditBtn").style.display = "inline-block";
+
+  // tampilkan foto yang sudah ada di preview
+  const preview = document.getElementById("imgPreview");
+  const label = document.getElementById("imgUploadLabel");
+  if(item.image_url){
+    preview.src = item.image_url;
+    preview.style.display = "block";
+    label.style.display = "none";
+  } else {
+    preview.style.display = "none";
+    label.style.display = "block";
+  }
+  document.getElementById("menuImageInput").value = "";
   window.scrollTo({top:0, behavior:"smooth"});
 }
 
@@ -509,6 +540,9 @@ function cancelEditMenu(){
   document.getElementById("menuCat").value = "makanan";
   document.getElementById("menuPrice").value = "";
   document.getElementById("menuEmoji").value = "";
+  document.getElementById("menuImageInput").value = "";
+  document.getElementById("imgPreview").style.display = "none";
+  document.getElementById("imgUploadLabel").style.display = "block";
   document.getElementById("cancelEditBtn").style.display = "none";
 }
 
@@ -518,10 +552,28 @@ async function saveMenuItem(){
   const cat = document.getElementById("menuCat").value;
   const price = parseInt(document.getElementById("menuPrice").value);
   const emoji = document.getElementById("menuEmoji").value.trim() || "🍽️";
+  const fileInput = document.getElementById("menuImageInput");
+  const file = fileInput.files[0];
 
   if(!name || !price || price<0){ toast("Lengkapin dulu nama & harga ya!"); return; }
 
+  toast("⏳ Lagi nyimpen...");
+
+  let image_url = null;
+
+  // Upload foto kalau ada file baru yang dipilih
+  if(file){
+    const ext = file.name.split(".").pop();
+    const filename = `menu-${Date.now()}.${ext}`;
+    const { error: upErr } = await sb.storage.from("menu-images").upload(filename, file, { upsert:true });
+    if(upErr){ toast("Gagal upload foto: "+upErr.message); console.error(upErr); return; }
+    const { data: urlData } = sb.storage.from("menu-images").getPublicUrl(filename);
+    image_url = urlData.publicUrl;
+  }
+
+  // Kalau edit dan gak ada foto baru, pertahankan foto lama
   const payload = { name, cat, price, emoji, tersedia:true };
+  if(image_url) payload.image_url = image_url;
 
   try{
     if(id){
@@ -535,7 +587,7 @@ async function saveMenuItem(){
     }
     cancelEditMenu();
     await loadAdminMenuItems();
-    await loadMenuFromDB(); // refresh menu di halaman publik juga
+    await loadMenuFromDB();
   }catch(e){
     toast("Gagal simpan menu: "+e.message);
     console.error(e);
