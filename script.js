@@ -15,20 +15,8 @@ const CONFIG = {
 const sb = window.supabase.createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
 
 /* ============================================================
-   🍛 DATA MENU — EDIT / TAMBAH MENU DI SINI
+   🍛 MENU — dikelola dari Admin, tersimpan di Supabase
    ============================================================ */
-const MENU = [
-  { id:"m1", name:"Nasi Goreng GenZ", cat:"makanan", price:18000, emoji:"🍛" },
-  { id:"m2", name:"Mie Ayam Kekinian", cat:"makanan", price:15000, emoji:"🍜" },
-  { id:"m3", name:"Ayam Geprek Sultan", cat:"makanan", price:20000, emoji:"🍗" },
-  { id:"m4", name:"Bakso Mercon", cat:"makanan", price:17000, emoji:"🥩" },
-  { id:"m5", name:"Roti Bakar Coklat Keju", cat:"makanan", price:12000, emoji:"🍞" },
-  { id:"d1", name:"Es Kopi Susu Gula Aren", cat:"minuman", price:12000, emoji:"☕" },
-  { id:"d2", name:"Es Teh Leci", cat:"minuman", price:8000, emoji:"🧊" },
-  { id:"d3", name:"Matcha Latte", cat:"minuman", price:15000, emoji:"🍵" },
-  { id:"d4", name:"Jus Alpukat", cat:"minuman", price:13000, emoji:"🥑" },
-  { id:"d5", name:"Lemon Tea Soda", cat:"minuman", price:10000, emoji:"🍋" }
-];
 
 const STATUS_STYLE = {
   "Menunggu Verifikasi": "wait",
@@ -43,7 +31,8 @@ const STATUS_LIST = ["Menunggu Verifikasi","Menunggu Konfirmasi","Lunas","Dipros
 /* ============================================================
    STATE
    ============================================================ */
-let cart = {};          // { itemId: qty }
+let MENU = [];           // diisi dari Supabase
+let cart = {};           // { itemId: qty }
 let activeCat = "semua";
 let selectedPayment = "transfer";
 let lastOrderForWA = null;
@@ -83,11 +72,32 @@ function goView(name){
 }
 
 /* ============================================================
+   MENU FROM SUPABASE
+   ============================================================ */
+async function loadMenuFromDB(){
+  const grid = document.getElementById("menuGrid");
+  grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">⏳ Lagi ngambil menu...</div>`;
+  try{
+    const { data, error } = await sb.from("menu_items").select("*").eq("tersedia", true).order("cat").order("name");
+    if(error) throw error;
+    MENU = data || [];
+    renderMenu();
+  }catch(e){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">😵 Gagal load menu, refresh halaman ya.</div>`;
+    console.error(e);
+  }
+}
+
+/* ============================================================
    MENU RENDERING
    ============================================================ */
 function renderMenu(){
   const grid = document.getElementById("menuGrid");
   const items = MENU.filter(m => activeCat==="semua" || m.cat===activeCat);
+  if(items.length===0){
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1">Belum ada menu nih 😅<br><small>Admin bisa tambah menu dulu ya</small></div>`;
+    return;
+  }
   grid.innerHTML = items.map(item=>{
     const qty = cart[item.id] || 0;
     const action = qty>0
@@ -99,7 +109,7 @@ function renderMenu(){
       : `<button class="add-btn" onclick="changeQty('${item.id}',1)">+ Tambah</button>`;
     return `
       <div class="card">
-        <div class="card-emoji">${item.emoji}</div>
+        <div class="card-emoji">${item.emoji||"🍽️"}</div>
         <div class="card-cat">${item.cat}</div>
         <h3>${item.name}</h3>
         <div class="card-price">${rupiah(item.price)}</div>
@@ -211,7 +221,7 @@ function closeModal(id){
 
 function buildWAMessage(order){
   const lines = order.items.map(it=>`- ${it.name} x${it.qty} = ${rupiah(it.price*it.qty)}`).join("\n");
-  let msg = `Halo Warung GenZ! 👋\nMau konfirmasi pesanan:\n\nID Pesanan: ${order.id}\nNama: ${order.name}\nNo. HP: ${order.phone}\nAlamat/Catatan: ${order.address || "-"}\n\nPesanan:\n${lines}\n\nTotal: ${rupiah(order.total)}\n`;
+  let msg = `Halo Warung GenZ! 👋\nMau konfirmasi pesanan:\n\nID Pesanan: ${order.id}\nNama: ${order.name}\nNo. HP: ${order.phone}\nAlamat/Catatan: ${order.address || "-"}\n\nPesanan:\n${lines}\n\nTOTAL: ${rupiah(order.total)}\nMetode Bayar: ${order.payment==="transfer" ? "Transfer Bank" : "COD"}\n\n`;
   msg += order.payment==="transfer"
     ? "Bukti transfer saya lampirkan di chat ini ya 🙏"
     : "Mohon dikonfirmasi pesanannya, makasih! 🙏";
@@ -357,6 +367,7 @@ async function searchOrder(){
    ADMIN
    ============================================================ */
 let allOrdersCache = [];
+let adminMenuCache = [];
 
 function checkAdminPin(){
   const val = document.getElementById("adminPin").value.trim();
@@ -367,6 +378,21 @@ function checkAdminPin(){
   } else {
     toast("PIN salah, coba lagi.");
   }
+}
+
+function adminLogout(){
+  document.getElementById("adminPanel").style.display = "none";
+  document.getElementById("adminGate").style.display = "block";
+  document.getElementById("adminPin").value = "";
+}
+
+function switchAdminTab(tab){
+  const isPesanan = tab==="pesanan";
+  document.getElementById("adminTabPesanan").style.display = isPesanan ? "block" : "none";
+  document.getElementById("adminTabMenu").style.display = isPesanan ? "none" : "block";
+  document.getElementById("tabPesanan").classList.toggle("active", isPesanan);
+  document.getElementById("tabMenu").classList.toggle("active", !isPesanan);
+  if(tab==="menu") loadAdminMenuItems();
 }
 
 async function loadAdminOrders(){
@@ -408,10 +434,112 @@ async function updateOrderStatus(id, newStatus){
   }
 }
 
+/* ---------- CRUD MENU ---------- */
+async function loadAdminMenuItems(){
+  const box = document.getElementById("adminMenuList");
+  box.innerHTML = `<div class="empty-state">Lagi ambil data menu...</div>`;
+  try{
+    const { data, error } = await sb.from("menu_items").select("*").order("cat").order("name");
+    if(error) throw error;
+    adminMenuCache = data || [];
+    renderAdminMenuList();
+  }catch(e){
+    box.innerHTML = `<div class="empty-state">Gagal ambil data menu.</div>`;
+    console.error(e);
+  }
+}
+
+function renderAdminMenuList(){
+  const box = document.getElementById("adminMenuList");
+  if(!adminMenuCache.length){
+    box.innerHTML = `<div class="empty-state">Belum ada menu. Tambah dulu yuk!</div>`;
+    return;
+  }
+  box.innerHTML = adminMenuCache.map(item=>`
+    <div class="menu-item-card">
+      <div class="mic-emoji">${item.emoji||"🍽️"}</div>
+      <div class="mic-info">
+        <div class="mic-name">${item.name}</div>
+        <div class="mic-sub">${item.cat} · ${item.tersedia ? "✅ Tersedia" : "❌ Tidak tersedia"}</div>
+      </div>
+      <span class="mic-price">${rupiah(item.price)}</span>
+      <div class="mic-actions">
+        <button class="edit-btn" onclick='startEditMenu(${JSON.stringify(item)})'>✏️ Edit</button>
+        <button class="del-btn" onclick="deleteMenuItem('${item.id}','${item.name}')">🗑️</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function startEditMenu(item){
+  document.getElementById("menuFormTitle").textContent = "✏️ Edit Menu";
+  document.getElementById("editMenuId").value = item.id;
+  document.getElementById("menuName").value = item.name;
+  document.getElementById("menuCat").value = item.cat;
+  document.getElementById("menuPrice").value = item.price;
+  document.getElementById("menuEmoji").value = item.emoji||"";
+  document.getElementById("cancelEditBtn").style.display = "inline-block";
+  window.scrollTo({top:0, behavior:"smooth"});
+}
+
+function cancelEditMenu(){
+  document.getElementById("menuFormTitle").textContent = "➕ Tambah Menu Baru";
+  document.getElementById("editMenuId").value = "";
+  document.getElementById("menuName").value = "";
+  document.getElementById("menuCat").value = "makanan";
+  document.getElementById("menuPrice").value = "";
+  document.getElementById("menuEmoji").value = "";
+  document.getElementById("cancelEditBtn").style.display = "none";
+}
+
+async function saveMenuItem(){
+  const id = document.getElementById("editMenuId").value;
+  const name = document.getElementById("menuName").value.trim();
+  const cat = document.getElementById("menuCat").value;
+  const price = parseInt(document.getElementById("menuPrice").value);
+  const emoji = document.getElementById("menuEmoji").value.trim() || "🍽️";
+
+  if(!name || !price || price<0){ toast("Lengkapin dulu nama & harga ya!"); return; }
+
+  const payload = { name, cat, price, emoji, tersedia:true };
+
+  try{
+    if(id){
+      const { error } = await sb.from("menu_items").update(payload).eq("id", id);
+      if(error) throw error;
+      toast("Menu berhasil diupdate ✅");
+    } else {
+      const { error } = await sb.from("menu_items").insert(payload);
+      if(error) throw error;
+      toast("Menu baru berhasil ditambah ✅");
+    }
+    cancelEditMenu();
+    await loadAdminMenuItems();
+    await loadMenuFromDB(); // refresh menu di halaman publik juga
+  }catch(e){
+    toast("Gagal simpan menu: "+e.message);
+    console.error(e);
+  }
+}
+
+async function deleteMenuItem(id, name){
+  if(!confirm(`Hapus menu "${name}"? Aksi ini gak bisa dibatalin.`)) return;
+  try{
+    const { error } = await sb.from("menu_items").delete().eq("id", id);
+    if(error) throw error;
+    toast(`Menu "${name}" dihapus 🗑️`);
+    await loadAdminMenuItems();
+    await loadMenuFromDB();
+  }catch(e){
+    toast("Gagal hapus menu: "+e.message);
+    console.error(e);
+  }
+}
+
 /* ============================================================
    INIT
    ============================================================ */
-(function init(){
-  renderMenu();
+(async function init(){
   renderCart();
+  await loadMenuFromDB(); // load menu dari Supabase
 })();
